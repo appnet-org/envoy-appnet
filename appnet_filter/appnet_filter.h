@@ -152,6 +152,35 @@ public:
   void onFailure(const Http::AsyncClient::Request&, Http::AsyncClient::FailureReason) override;
   void onBeforeFinalizeUpstreamSpan(Tracing::Span&, const Http::ResponseHeaderMap*) override;
 
+
+  int getRemoteEndpointNum() {
+    auto &stream_info = this->decoder_callbacks_->streamInfo();
+    auto cluster_info = stream_info.upstreamClusterInfo();
+    if (cluster_info == nullptr) {
+      ENVOY_LOG(info, "[Ratelimit Filter] cluster_info is null");
+      PANIC("cluster_info is null");
+    }
+    ENVOY_LOG(info, "[Ratelimit Filter] cluster info: {}", cluster_info->get()->name());
+    auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster(cluster_info->get()->name());
+    if (!cluster) {
+      ENVOY_LOG(info, "cluster not found");
+      assert(0);
+    }
+    // check priority set num
+    auto priority_set_num = cluster->prioritySet().hostSetsPerPriority().size();
+    if (priority_set_num != 1) {
+      ENVOY_LOG(info, "priority set num is not 1");
+      assert(0);
+    }
+    auto host_list = cluster->prioritySet().hostSetsPerPriority()[0]->hosts();
+    return host_list.size();
+  }
+
+  void setRoutingEndpoint(int x) {
+    auto map = decoder_callbacks_->requestHeaders();
+    map->addCopy(LowerCaseString("appnet_route_to"), x);
+  }
+
 private:
   StreamDecoderFilterCallbacks* decoder_callbacks_;
   StreamEncoderFilterCallbacks* encoder_callbacks_;
@@ -166,6 +195,13 @@ private:
   std::optional<Http::AppnetCoroutine> appnet_coroutine_;
   ResponseMessagePtr external_response_;
   std::optional<Awaiter*> webdis_awaiter_;
+
+  std::mutex mutex_; // for onSuccess and decode/encode synchronization
+
+  bool req_appnet_blocked_ = false;
+  bool resp_appnet_blocked_ = false;
+  
+  bool in_decoding_or_encoding_ = false;
 
   AppnetCoroutine startRequestAppnet();
   AppnetCoroutine startResponseAppnet();
