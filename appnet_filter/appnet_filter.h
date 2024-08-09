@@ -192,6 +192,9 @@ private:
   Buffer::Instance *request_buffer_;
   Buffer::Instance *response_buffer_;
 
+  // pb::Msg request_msg_;
+  // pb::Msg response_msg_;
+
   std::optional<Http::AppnetCoroutine> appnet_coroutine_;
   ResponseMessagePtr external_response_;
   std::optional<Awaiter*> webdis_awaiter_;

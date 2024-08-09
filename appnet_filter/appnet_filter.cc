@@ -28,6 +28,37 @@ std::optional<V> map_get_opt(const std::map<K, V> &m, const K &key) {
 }
 
 
+std::string get_rpc_field(const pb::Msg& rpc, const std::string& field) {
+  if (field == "body") {
+    return rpc.body();
+  } else {
+    throw std::runtime_error("Unknown field: " + field);
+  }
+}
+
+void set_rpc_field(pb::Msg& rpc, const std::string& field, const std::string& value) {
+  if (field == "body") {
+    rpc.set_body(value);
+  } else {
+    throw std::runtime_error("Unknown field: " + field);
+  }
+}
+
+void replace_payload(Buffer::Instance *data, pb::Msg& rpc) {
+  std::string serialized;
+  rpc.SerializeToString(&serialized);
+  
+  // drain the original data
+  data->drain(data->length());
+  // fill 0x00 and then the length of new message
+  std::vector<uint8_t> new_data(5 + serialized.size());
+  new_data[0] = 0x00;
+  uint32_t len = serialized.size();
+  *reinterpret_cast<uint32_t*>(&new_data[1]) = ntohl(len);
+  std::copy(serialized.begin(), serialized.end(), new_data.begin() + 5);
+  data->add(new_data.data(), new_data.size());
+}
+
 std::mutex init_lock;
 std::mutex global_state_lock;
 
@@ -104,6 +135,11 @@ FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_st
 
   ENVOY_LOG(info, "[Appnet Filter] encodeData");
   this->response_buffer_ = &data;
+
+  // std::vector<uint8_t> data_bytes(data.length());
+  // data.copyOut(0, data.length(), data_bytes.data());
+  // this->response_msg_ = pb::Msg::ParseFromString(data_bytes.data() + 5, data_bytes.size() - 5);
+
   this->appnet_coroutine_.emplace(this->startResponseAppnet());
   this->in_decoding_or_encoding_ = true;
   this->appnet_coroutine_.value().handle_.resume(); // the coroutine will be started here.
