@@ -11,7 +11,7 @@ namespace Envoy {
 namespace Server {
 namespace Configuration {
 
-class HttpSampleFilterConfigFactory : public NamedHttpFilterConfigFactory {
+class AppnetFilterConfigFactory : public NamedHttpFilterConfigFactory {
 public:
   absl::StatusOr<Http::FilterFactoryCb> createFilterFactoryFromProto(const Protobuf::Message& proto_config,
                                                      const std::string&,
@@ -37,6 +37,12 @@ private:
         std::make_shared<Http::AppnetFilterConfig>(
             Http::AppnetFilterConfig(proto_config, factory_ctx));
 
+    // We leak it intentionally.
+    auto _ = new Http::AppNetWeakSyncTimer(
+        config,
+        factory_ctx.serverFactoryContext().mainThreadDispatcher(), 
+        std::chrono::milliseconds(1000));
+
     return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
       auto filter = new Http::AppnetFilter(config);
       callbacks.addStreamFilter(Http::StreamFilterSharedPtr{filter});
@@ -47,7 +53,7 @@ private:
 /**
  * Static registration for this sample filter. @see RegisterFactory.
  */
-static Registry::RegisterFactory<HttpSampleFilterConfigFactory, NamedHttpFilterConfigFactory>
+static Registry::RegisterFactory<AppnetFilterConfigFactory, NamedHttpFilterConfigFactory>
     register_;
 
 } // namespace Configuration

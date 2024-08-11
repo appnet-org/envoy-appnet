@@ -9,6 +9,7 @@
 #include "source/extensions/filters/http/common/pass_through_filter.h"
 
 #include "appnet_filter/appnet_filter.pb.h"
+#include "source/common/http/message_impl.h" 
 
 #include <coroutine>
 
@@ -216,6 +217,43 @@ public:
   void onSuccess(const Http::AsyncClient::Request&, Http::ResponseMessagePtr&&) override {}
   void onFailure(const Http::AsyncClient::Request&, Http::AsyncClient::FailureReason) override {}
   void onBeforeFinalizeUpstreamSpan(Tracing::Span&, const Http::ResponseHeaderMap*) override {}
+};
+
+
+
+using AppnetFilterConfigSharedPtr = std::shared_ptr<AppnetFilterConfig>;
+class AppNetWeakSyncTimer : public Logger::Loggable<Logger::Id::filter> {
+public:
+  AppNetWeakSyncTimer(AppnetFilterConfigSharedPtr config, Event::Dispatcher& dispatcher, std::chrono::milliseconds timeout) 
+    : config_(config), tick_timer_(dispatcher.createTimer([this]() -> void { onTick(); })), timeout_(timeout) {
+    onTick();
+  }
+private:
+  AppnetFilterConfigSharedPtr config_;
+  Event::TimerPtr tick_timer_;
+  std::chrono::milliseconds timeout_;
+
+  void onTick();
+
+  bool sendWebdisRequest(const std::string path, Http::AsyncClient::Callbacks &callback) {
+    auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster("webdis_cluster");
+    if (!cluster) {
+    ENVOY_LOG(info, "webdis_cluster not found");
+    assert(0);
+    return false;
+    }
+    Http::RequestMessagePtr request = std::make_unique<Http::RequestMessageImpl>();
+
+    request->headers().setMethod(Http::Headers::get().MethodValues.Get);
+    request->headers().setHost("localhost:7379");
+    ENVOY_LOG(info, "[AppNet Filter] webdis requesting path={}", path);
+    request->headers().setPath(path);
+    auto options = Http::AsyncClient::RequestOptions()
+            .setTimeout(std::chrono::milliseconds(1000))
+            .setSampled(absl::nullopt);
+    cluster->httpAsyncClient().send(std::move(request), callback, options);
+    return true;
+  }
 };
 
 } // namespace Http

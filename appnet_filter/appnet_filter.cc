@@ -59,7 +59,6 @@ void replace_payload(Buffer::Instance *data, pb::Msg& rpc) {
   data->add(new_data.data(), new_data.size());
 }
 
-std::mutex init_lock;
 std::mutex global_state_lock;
 
 bool init = false;
@@ -67,12 +66,14 @@ bool init = false;
 
 AppnetFilterConfig::AppnetFilterConfig(
   const sample::FilterConfig&, Envoy::Server::Configuration::FactoryContext &ctx)
-  : ctx_(ctx) { }
+  : ctx_(ctx) {
+  
+}
 
 AppnetFilter::AppnetFilter(AppnetFilterConfigSharedPtr config)
   : config_(config), empty_callback_(new EmptyCallback{}) {
 
-  std::lock_guard<std::mutex> guard(init_lock);
+  std::lock_guard<std::mutex> guard(global_state_lock);
   if (!init) {
     init = true;
 
@@ -209,5 +210,12 @@ AppnetCoroutine AppnetFilter::startResponseAppnet() {
   co_return;
 }
 
+void AppNetWeakSyncTimer::onTick() {
+  ENVOY_LOG(info, "[AppNet Filter] onTick");
+
+  // !APPNET_ONTICK
+
+  this->tick_timer_->enableTimer(this->timeout_);
+}
 } // namespace Http
 } // namespace Envoy
