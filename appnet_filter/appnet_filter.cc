@@ -210,10 +210,16 @@ AppnetCoroutine AppnetFilter::startResponseAppnet() {
   co_return;
 }
 
+std::map<int, int> cache;
+
 void AppNetWeakSyncTimer::onTick() {
   ENVOY_LOG(info, "[AppNet Filter] onTick");
 
-  // !APPNET_ONTICK
+  // for every key, value pair
+  for (auto& [key, value] : cache) {
+    ENVOY_LOG(info, "[AppNet Filter] cache key={}, value={}", key, value);
+  }
+  this->sendWebdisRequest("")
 
   this->tick_timer_->enableTimer(this->timeout_);
 }

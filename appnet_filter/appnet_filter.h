@@ -225,17 +225,18 @@ using AppnetFilterConfigSharedPtr = std::shared_ptr<AppnetFilterConfig>;
 class AppNetWeakSyncTimer : public Logger::Loggable<Logger::Id::filter> {
 public:
   AppNetWeakSyncTimer(AppnetFilterConfigSharedPtr config, Event::Dispatcher& dispatcher, std::chrono::milliseconds timeout) 
-    : config_(config), tick_timer_(dispatcher.createTimer([this]() -> void { onTick(); })), timeout_(timeout) {
+    : config_(config), tick_timer_(dispatcher.createTimer([this]() -> void { onTick(); })), timeout_(timeout), empty_callback_() {
     onTick();
   }
 private:
   AppnetFilterConfigSharedPtr config_;
   Event::TimerPtr tick_timer_;
   std::chrono::milliseconds timeout_;
+  EmptyCallback empty_callback_;
 
   void onTick();
 
-  bool sendWebdisRequest(const std::string path, Http::AsyncClient::Callbacks &callback) {
+  bool sendWebdisRequest(const std::string path, Http::AsyncClient::Callbacks &callback = empty_callback_) {
     auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster("webdis_cluster");
     if (!cluster) {
     ENVOY_LOG(info, "webdis_cluster not found");
@@ -246,7 +247,7 @@ private:
 
     request->headers().setMethod(Http::Headers::get().MethodValues.Get);
     request->headers().setHost("localhost:7379");
-    ENVOY_LOG(info, "[AppNet Filter] webdis requesting path={}", path);
+    ENVOY_LOG(info, "[AppNet Filter OnTick] webdis requesting path={}", path);
     request->headers().setPath(path);
     auto options = Http::AsyncClient::RequestOptions()
             .setTimeout(std::chrono::milliseconds(1000))
