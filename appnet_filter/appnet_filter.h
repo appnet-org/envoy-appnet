@@ -246,6 +246,9 @@ public:
 
 
 using AppnetFilterConfigSharedPtr = std::shared_ptr<AppnetFilterConfig>;
+
+inline EmptyCallback EMPTY_CALLBACK{};
+
 class AppNetWeakSyncTimer : public Logger::Loggable<Logger::Id::filter> {
 public:
   AppNetWeakSyncTimer(AppnetFilterConfigSharedPtr config, Event::Dispatcher& dispatcher, std::chrono::milliseconds timeout) 
@@ -257,8 +260,7 @@ private:
   Event::TimerPtr tick_timer_;
   std::chrono::milliseconds timeout_;
 
-  static EmptyCallback EMPTY_CALLBACK;
-
+  
   void onTick();
 
   bool sendWebdisRequest(const std::string path, Http::AsyncClient::Callbacks &callback = EMPTY_CALLBACK) {
