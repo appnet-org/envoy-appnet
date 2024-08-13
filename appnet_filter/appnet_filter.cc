@@ -19,12 +19,12 @@ namespace Envoy {
 namespace Http {
 
 template<typename A, typename B>
-float my_min(A a, B b) {
+auto my_min(A a, B b) {
   return a < b ? a : b;
 }
 
 template<typename A, typename B>
-float my_max(A a, B b) {
+auto my_max(A a, B b) {
   return a > b ? a : b;
 }
 
