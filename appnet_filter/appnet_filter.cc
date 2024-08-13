@@ -18,6 +18,16 @@
 namespace Envoy {
 namespace Http {
 
+template<typename A, typename B>
+float my_min(A a, B b) {
+  return a < b ? a : b;
+}
+
+template<typename A, typename B>
+float my_max(A a, B b) {
+  return a > b ? a : b;
+}
+
 template<typename K, typename V>
 std::optional<V> map_get_opt(const std::map<K, V> &m, const K &key) {
   auto it = m.find(key);
