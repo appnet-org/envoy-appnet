@@ -16,6 +16,26 @@
 namespace Envoy {
 namespace Http {
 
+// struct Awaiter;
+
+// struct AppnetAsyncRespCallback : public Http::AsyncClient::Callbacks {
+
+//   Awaiter *awaiter_;
+//   Http::ResponseMessagePtr response_;
+
+//   AppnetAsyncRespCallback(Awaiter *awaiter) : awaiter_(awaiter) {}
+//   void onSuccess(const Http::AsyncClient::Request&, Http::ResponseMessagePtr&&) override {}
+//   void onFailure(const Http::AsyncClient::Request&, Http::AsyncClient::FailureReason) override {}
+//   void onBeforeFinalizeUpstreamSpan(Tracing::Span&, const Http::ResponseHeaderMap*) override {}
+// };
+
+// struct AppnetProgramParams {
+//   HeaderMap *headers_;
+//   Buffer::Instance *data_;
+//   Upstream::ThreadLocalCluster *webdis_cluster_;
+  
+// };
+
 
 struct AppnetCoroutine {
   struct promise_type {
@@ -34,32 +54,36 @@ struct AppnetCoroutine {
       std::cerr << "initial_suspend " << this << std::endl;
       return {};
     }
-    std::suspend_never final_suspend() noexcept {
+    std::suspend_always final_suspend() noexcept {
       std::cerr << "final_suspend " << this << std::endl;
       return {};
     }
   };
 
 
-  std::coroutine_handle<promise_type> handle_;
+  std::optional<std::coroutine_handle<promise_type>> handle_;
 
   explicit AppnetCoroutine(std::coroutine_handle<promise_type> handle)
       : handle_(handle) {
-    std::cerr << "create app coroutine. handle_address=" << handle.address() << std::endl;
+    std::cerr << "create app coroutine. this=" << this << std::endl;
   }
+
+  AppnetCoroutine(const AppnetCoroutine& rhs) = delete;
 
   AppnetCoroutine(AppnetCoroutine&& rhs) {
     std::cerr << "move ctor from " << &rhs << " to " << this << std::endl;
     handle_ = rhs.handle_;
-    rhs.handle_ = nullptr;
+    rhs.handle_.reset();
   }
 
   ~AppnetCoroutine() {
-    std::cerr << "destroy " << this << std::endl;
-    // if (handle_) {
-    //   std::cerr << "still alive. destroy it" << std::endl;
-    //   handle_.destroy();
-    // }
+    if (handle_.has_value()) {
+      std::cerr << "destroy " << this << std::endl;
+      assert(handle_.value().done());
+      handle_.value().destroy();
+    } else {
+      std::cerr << "destroy " << this << " (no handle)" << std::endl;
+    }
   }
 };
 
@@ -158,10 +182,10 @@ public:
     auto &stream_info = this->decoder_callbacks_->streamInfo();
     auto cluster_info = stream_info.upstreamClusterInfo();
     if (cluster_info == nullptr) {
-      ENVOY_LOG(info, "[Ratelimit Filter] cluster_info is null");
+      ENVOY_LOG(info, "[AppNet Filter] cluster_info is null");
       PANIC("cluster_info is null");
     }
-    ENVOY_LOG(info, "[Ratelimit Filter] cluster info: {}", cluster_info->get()->name());
+    ENVOY_LOG(info, "[AppNet Filter] cluster info: {}", cluster_info->get()->name());
     auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster(cluster_info->get()->name());
     if (!cluster) {
       ENVOY_LOG(info, "cluster not found");
@@ -209,7 +233,7 @@ private:
 
   AppnetCoroutine startRequestAppnet();
   AppnetCoroutine startResponseAppnet();
-  bool sendWebdisRequest(const std::string path, Callbacks& filter);
+  bool sendWebdisRequest(const std::string path, Callbacks& callback);
 };
 
 class EmptyCallback : public Http::AsyncClient::Callbacks {
@@ -225,18 +249,19 @@ using AppnetFilterConfigSharedPtr = std::shared_ptr<AppnetFilterConfig>;
 class AppNetWeakSyncTimer : public Logger::Loggable<Logger::Id::filter> {
 public:
   AppNetWeakSyncTimer(AppnetFilterConfigSharedPtr config, Event::Dispatcher& dispatcher, std::chrono::milliseconds timeout) 
-    : config_(config), tick_timer_(dispatcher.createTimer([this]() -> void { onTick(); })), timeout_(timeout), empty_callback_() {
+    : config_(config), tick_timer_(dispatcher.createTimer([this]() -> void { onTick(); })), timeout_(timeout) {
     onTick();
   }
 private:
   AppnetFilterConfigSharedPtr config_;
   Event::TimerPtr tick_timer_;
   std::chrono::milliseconds timeout_;
-  EmptyCallback empty_callback_;
+
+  static EmptyCallback EMPTY_CALLBACK;
 
   void onTick();
 
-  bool sendWebdisRequest(const std::string path, Http::AsyncClient::Callbacks &callback = empty_callback_) {
+  bool sendWebdisRequest(const std::string path, Http::AsyncClient::Callbacks &callback = EMPTY_CALLBACK) {
     auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster("webdis_cluster");
     if (!cluster) {
     ENVOY_LOG(info, "webdis_cluster not found");

@@ -81,7 +81,9 @@ AppnetFilter::AppnetFilter(AppnetFilterConfigSharedPtr config)
   }
 }
 
-AppnetFilter::~AppnetFilter() {}
+AppnetFilter::~AppnetFilter() {
+  ENVOY_LOG(info, "[Appnet Filter] ~AppnetFilter");
+}
 
 void AppnetFilter::onDestroy() {}
 
@@ -99,11 +101,13 @@ FilterDataStatus AppnetFilter::decodeData(Buffer::Instance &data, bool end_of_st
   this->request_buffer_ = &data;
   this->appnet_coroutine_.emplace(this->startRequestAppnet());
   this->in_decoding_or_encoding_ = true;
-  this->appnet_coroutine_.value().handle_.resume(); // the coroutine will be started here.
-  if (this->appnet_coroutine_.value().handle_.done()) {
+  this->appnet_coroutine_.value().handle_.value().resume(); // the coroutine will be started here.
+  if (this->appnet_coroutine_.value().handle_.value().done()) {
+    ENVOY_LOG(info, "[Appnet Filter] decodeData done in one time, req_appnet_blocked_={}", this->req_appnet_blocked_);
     // no more callback
     return this->req_appnet_blocked_ ? FilterDataStatus::StopIterationNoBuffer : FilterDataStatus::Continue;
   } else {
+    ENVOY_LOG(info, "[Appnet Filter] decodeData not done in one time, req_appnet_blocked_={}", this->req_appnet_blocked_);
     return FilterDataStatus::StopIterationAndBuffer;
   }
 }
@@ -120,6 +124,7 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
   ENVOY_LOG(info, "[Appnet Filter] encodeHeaders {}", headers);
   this->response_headers_ = &headers;
   if (this->req_appnet_blocked_) {
+    ENVOY_LOG(info, "[Appnet Filter] encodeHeaders req_appnet_blocked_={}", this->req_appnet_blocked_);
     // We don't process the response if the request is blocked.
     return FilterHeadersStatus::Continue;
   }
@@ -127,14 +132,12 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
 }
 
 FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_stream) {
-  if (!end_of_stream) 
-    return FilterDataStatus::Continue;
   if (this->req_appnet_blocked_) {
     // We don't process the response if the request is blocked.
     return FilterDataStatus::Continue;
   }
 
-  ENVOY_LOG(info, "[Appnet Filter] encodeData");
+  ENVOY_LOG(info, "[Appnet Filter] encodeData end_of_stream={}", end_of_stream);
   this->response_buffer_ = &data;
 
   // std::vector<uint8_t> data_bytes(data.length());
@@ -143,11 +146,13 @@ FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_st
 
   this->appnet_coroutine_.emplace(this->startResponseAppnet());
   this->in_decoding_or_encoding_ = true;
-  this->appnet_coroutine_.value().handle_.resume(); // the coroutine will be started here.
-  if (this->appnet_coroutine_.value().handle_.done()) {
+  this->appnet_coroutine_.value().handle_.value().resume(); // the coroutine will be started here.
+  if (this->appnet_coroutine_.value().handle_.value().done()) {
     // no more callback
+    ENVOY_LOG(info, "[Appnet Filter] encodeData done in one time, req_appnet_blocked_={}", this->req_appnet_blocked_);
     return this->resp_appnet_blocked_ ? FilterDataStatus::StopIterationNoBuffer : FilterDataStatus::Continue;
   } else {
+    ENVOY_LOG(info, "[Appnet Filter] encodeData not done in one time, req_appnet_blocked_={}", this->req_appnet_blocked_);
     return FilterDataStatus::StopIterationAndBuffer;
   }
 }
@@ -155,14 +160,14 @@ FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_st
 // For now, it's dedicated to the webdis response.
 void AppnetFilter::onSuccess(const Http::AsyncClient::Request&,
                  Http::ResponseMessagePtr&& message) {
-  // ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess");
+  ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess");
   this->external_response_ = std::move(message);
   assert(message.get() == nullptr);
-  // ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess (second step)");
+  ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess (second step)");
   assert(this->webdis_awaiter_.has_value());
   this->in_decoding_or_encoding_ = false;
   this->webdis_awaiter_.value()->i_am_ready();
-  // ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess (3rd step)");
+  ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess (3rd step)");
 }
 
 void AppnetFilter::onFailure(const Http::AsyncClient::Request&,
@@ -187,7 +192,7 @@ bool AppnetFilter::sendWebdisRequest(const std::string path, Callbacks &callback
 
   request->headers().setMethod(Http::Headers::get().MethodValues.Get);
   request->headers().setHost("localhost:7379");
-  ENVOY_LOG(info, "[Ratelimit Filter] webdis requesting path={}", path);
+  ENVOY_LOG(info, "[AppNet Filter] webdis requesting path={}", path);
   request->headers().setPath(path);
   auto options = Http::AsyncClient::RequestOptions()
            .setTimeout(std::chrono::milliseconds(1000))
@@ -211,7 +216,7 @@ AppnetCoroutine AppnetFilter::startResponseAppnet() {
 }
 
 void AppNetWeakSyncTimer::onTick() {
-  ENVOY_LOG(info, "[AppNet Filter] onTick");
+  // ENVOY_LOG(info, "[AppNet Filter] onTick");
 
   // !APPNET_ONTICK
 
