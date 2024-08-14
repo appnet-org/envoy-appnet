@@ -18,6 +18,8 @@
 namespace Envoy {
 namespace Http {
 
+namespace AppNetSampleFilter {
+
 template<typename A, typename B>
 auto my_min(A a, B b) {
   return a < b ? a : b;
@@ -232,5 +234,10 @@ void AppNetWeakSyncTimer::onTick() {
 
   this->tick_timer_->enableTimer(this->timeout_);
 }
+
+
+  
+} // namespace AppNetSampleFilter
+
 } // namespace Http
 } // namespace Envoy

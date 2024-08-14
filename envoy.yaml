@@ -26,7 +26,7 @@ static_resources:
                             cluster: service_cluster
                             timeout: 5s
                 http_filters:
-                  - name: sample
+                  - name: AppNetSampleFilter
                     typed_config:
                       "@type": type.googleapis.com/sample.FilterConfig
                   - name: envoy.filters.http.router

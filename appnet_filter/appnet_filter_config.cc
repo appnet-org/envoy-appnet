@@ -11,6 +11,10 @@ namespace Envoy {
 namespace Server {
 namespace Configuration {
 
+namespace AppNetSampleFilter {
+
+using namespace Envoy::Http::AppNetSampleFilter;
+
 class AppnetFilterConfigFactory : public NamedHttpFilterConfigFactory {
 public:
   absl::StatusOr<Http::FilterFactoryCb> createFilterFactoryFromProto(const Protobuf::Message& proto_config,
@@ -29,22 +33,22 @@ public:
     return ProtobufTypes::MessagePtr{new sample::FilterConfig()};
   }
 
-  std::string name() const override { return "sample"; }
+  std::string name() const override { return "AppNetSampleFilter"; }
 
 private:
   Http::FilterFactoryCb createFilter(const sample::FilterConfig& proto_config, FactoryContext &factory_ctx) {
-    Http::AppnetFilterConfigSharedPtr config =
-        std::make_shared<Http::AppnetFilterConfig>(
-            Http::AppnetFilterConfig(proto_config, factory_ctx));
+    AppnetFilterConfigSharedPtr config =
+        std::make_shared<AppnetFilterConfig>(
+            AppnetFilterConfig(proto_config, factory_ctx));
 
     // We leak it intentionally.
-    auto _ = new Http::AppNetWeakSyncTimer(
+    auto _ = new AppNetWeakSyncTimer(
         config,
         factory_ctx.serverFactoryContext().mainThreadDispatcher(), 
         std::chrono::milliseconds(1000));
 
     return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
-      auto filter = new Http::AppnetFilter(config);
+      auto filter = new AppnetFilter(config);
       callbacks.addStreamFilter(Http::StreamFilterSharedPtr{filter});
     };
   }
@@ -56,6 +60,7 @@ private:
 static Registry::RegisterFactory<AppnetFilterConfigFactory, NamedHttpFilterConfigFactory>
     register_;
 
+} // namespace AppNetSampleFilter
 } // namespace Configuration
 } // namespace Server
 } // namespace Envoy

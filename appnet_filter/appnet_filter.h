@@ -16,26 +16,7 @@
 namespace Envoy {
 namespace Http {
 
-// struct Awaiter;
-
-// struct AppnetAsyncRespCallback : public Http::AsyncClient::Callbacks {
-
-//   Awaiter *awaiter_;
-//   Http::ResponseMessagePtr response_;
-
-//   AppnetAsyncRespCallback(Awaiter *awaiter) : awaiter_(awaiter) {}
-//   void onSuccess(const Http::AsyncClient::Request&, Http::ResponseMessagePtr&&) override {}
-//   void onFailure(const Http::AsyncClient::Request&, Http::AsyncClient::FailureReason) override {}
-//   void onBeforeFinalizeUpstreamSpan(Tracing::Span&, const Http::ResponseHeaderMap*) override {}
-// };
-
-// struct AppnetProgramParams {
-//   HeaderMap *headers_;
-//   Buffer::Instance *data_;
-//   Upstream::ThreadLocalCluster *webdis_cluster_;
-  
-// };
-
+namespace AppNetSampleFilter {
 
 struct AppnetCoroutine {
   struct promise_type {
@@ -220,7 +201,7 @@ private:
   // pb::Msg request_msg_;
   // pb::Msg response_msg_;
 
-  std::optional<Http::AppnetCoroutine> appnet_coroutine_;
+  std::optional<AppnetCoroutine> appnet_coroutine_;
   ResponseMessagePtr external_response_;
   std::optional<Awaiter*> webdis_awaiter_;
 
@@ -283,6 +264,8 @@ private:
     return true;
   }
 };
+
+} // namespace AppNetSampleFilter
 
 } // namespace Http
 } // namespace Envoy
