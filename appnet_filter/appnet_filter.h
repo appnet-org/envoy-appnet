@@ -123,7 +123,7 @@ struct Awaiter {
 
 class AppnetFilterConfig {
 public:
-  AppnetFilterConfig(const sample::FilterConfig& proto_config, Envoy::Server::Configuration::FactoryContext &context);
+  AppnetFilterConfig(const ::appnetsamplefilter::FilterConfig& proto_config, Envoy::Server::Configuration::FactoryContext &context);
   Envoy::Server::Configuration::FactoryContext &ctx_;
 private:
 };
@@ -197,9 +197,6 @@ private:
   
   Buffer::Instance *request_buffer_;
   Buffer::Instance *response_buffer_;
-
-  // pb::Msg request_msg_;
-  // pb::Msg response_msg_;
 
   std::optional<AppnetCoroutine> appnet_coroutine_;
   ResponseMessagePtr external_response_;

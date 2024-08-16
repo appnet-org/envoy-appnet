@@ -2,8 +2,6 @@
 #include <string>
 #include <chrono>
 #include <mutex>
-#include "thirdparty/json.hpp"
-#include "thirdparty/base64.h"
 
 #include "appnet_filter.h"
 #include "appnet_filter/echo.pb.h"
@@ -13,12 +11,14 @@
 #include "source/common/http/utility.h"
 #include "source/common/http/message_impl.h" 
 #include "envoy/upstream/resource_manager.h"
-
+#include "thirdparty/json.hpp"
 
 namespace Envoy {
 namespace Http {
 
 namespace AppNetSampleFilter {
+  
+#include "thirdparty/base64.h"
 
 template<typename A, typename B>
 auto my_min(A a, B b) {
@@ -40,7 +40,7 @@ std::optional<V> map_get_opt(const std::map<K, V> &m, const K &key) {
 }
 
 
-std::string get_rpc_field(const pb::Msg& rpc, const std::string& field) {
+std::string get_rpc_field(const ::appnetsamplefilter::Msg& rpc, const std::string& field) {
   if (field == "body") {
     return rpc.body();
   } else {
@@ -48,7 +48,7 @@ std::string get_rpc_field(const pb::Msg& rpc, const std::string& field) {
   }
 }
 
-void set_rpc_field(pb::Msg& rpc, const std::string& field, const std::string& value) {
+void set_rpc_field(::appnetsamplefilter::Msg& rpc, const std::string& field, const std::string& value) {
   if (field == "body") {
     rpc.set_body(value);
   } else {
@@ -56,7 +56,7 @@ void set_rpc_field(pb::Msg& rpc, const std::string& field, const std::string& va
   }
 }
 
-void replace_payload(Buffer::Instance *data, pb::Msg& rpc) {
+void replace_payload(Buffer::Instance *data, ::appnetsamplefilter::Msg& rpc) {
   std::string serialized;
   rpc.SerializeToString(&serialized);
   
@@ -77,7 +77,7 @@ bool init = false;
 // !APPNET_STATE
 
 AppnetFilterConfig::AppnetFilterConfig(
-  const sample::FilterConfig&, Envoy::Server::Configuration::FactoryContext &ctx)
+  const ::appnetsamplefilter::FilterConfig&, Envoy::Server::Configuration::FactoryContext &ctx)
   : ctx_(ctx) {
   
 }
@@ -154,7 +154,7 @@ FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_st
 
   // std::vector<uint8_t> data_bytes(data.length());
   // data.copyOut(0, data.length(), data_bytes.data());
-  // this->response_msg_ = pb::Msg::ParseFromString(data_bytes.data() + 5, data_bytes.size() - 5);
+  // this->response_msg_ = ::appnetsamplefilter::Msg::ParseFromString(data_bytes.data() + 5, data_bytes.size() - 5);
 
   this->appnet_coroutine_.emplace(this->startResponseAppnet());
   this->in_decoding_or_encoding_ = true;
