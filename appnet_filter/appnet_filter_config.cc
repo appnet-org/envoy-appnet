@@ -21,7 +21,7 @@ public:
                                                      const std::string&,
                                                      FactoryContext& context) override {
 
-    return createFilter(Envoy::MessageUtil::downcastAndValidate<const sample::FilterConfig&>(
+    return createFilter(Envoy::MessageUtil::downcastAndValidate<const ::appnetsamplefilter::FilterConfig&>(
                             proto_config, context.messageValidationVisitor()),
                         context);
   }
@@ -30,13 +30,13 @@ public:
    *  Return the Protobuf Message that represents your config incase you have config proto
    */
   ProtobufTypes::MessagePtr createEmptyConfigProto() override {
-    return ProtobufTypes::MessagePtr{new sample::FilterConfig()};
+    return ProtobufTypes::MessagePtr{new ::appnetsamplefilter::FilterConfig()};
   }
 
   std::string name() const override { return "AppNetSampleFilter"; }
 
 private:
-  Http::FilterFactoryCb createFilter(const sample::FilterConfig& proto_config, FactoryContext &factory_ctx) {
+  Http::FilterFactoryCb createFilter(const ::appnetsamplefilter::FilterConfig& proto_config, FactoryContext &factory_ctx) {
     AppnetFilterConfigSharedPtr config =
         std::make_shared<AppnetFilterConfig>(
             AppnetFilterConfig(proto_config, factory_ctx));
