@@ -2,7 +2,5 @@ syntax = "proto3";
 
 package appnetsamplefilter;
 
-import "validate/validate.proto";
-
 message FilterConfig {
 }
