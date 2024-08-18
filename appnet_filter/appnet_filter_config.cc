@@ -46,6 +46,9 @@ private:
         config,
         factory_ctx.serverFactoryContext().mainThreadDispatcher(), 
         std::chrono::milliseconds(1000));
+      
+    // make compiler happy
+    (void)_;
 
     return [config](Http::FilterChainFactoryCallbacks& callbacks) -> void {
       auto filter = new AppnetFilter(config);
