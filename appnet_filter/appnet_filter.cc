@@ -100,7 +100,7 @@ AppnetFilter::~AppnetFilter() {
 void AppnetFilter::onDestroy() {}
 
 FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool) {
-  ENVOY_LOG(info, "[Appnet Filter] decodeHeaders {}", headers);
+  ENVOY_LOG(info, "[Appnet Filter] decodeHeaders {}, this={}", headers, static_cast<void*>(this));
   this->request_headers_ = &headers;
   return FilterHeadersStatus::StopIteration;
 }
@@ -109,7 +109,7 @@ FilterDataStatus AppnetFilter::decodeData(Buffer::Instance &data, bool end_of_st
   if (!end_of_stream) 
     return FilterDataStatus::Continue;
 
-  ENVOY_LOG(info, "[Appnet Filter] decodeData");
+  ENVOY_LOG(info, "[Appnet Filter] decodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
   this->request_buffer_ = &data;
   this->appnet_coroutine_.emplace(this->startRequestAppnet());
   this->in_decoding_or_encoding_ = true;
@@ -133,9 +133,10 @@ void AppnetFilter::setEncoderFilterCallbacks(StreamEncoderFilterCallbacks& callb
 }
 
 FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool) {
-  ENVOY_LOG(info, "[Appnet Filter] encodeHeaders {}", headers);
+  ENVOY_LOG(info, "[Appnet Filter] encodeHeaders {}, this={}, req_appnet_blocked_={}",
+    headers, static_cast<void*>(this), this->req_appnet_blocked_); // req_appnet_blocked_ should always be false here.
   this->response_headers_ = &headers;
-  if (this->req_appnet_blocked_) {
+  if (headers.get(LowerCaseString("appnet-local-reply")).empty() == false) {
     ENVOY_LOG(info, "[Appnet Filter] encodeHeaders req_appnet_blocked_={}", this->req_appnet_blocked_);
     // We don't process the response if the request is blocked.
     return FilterHeadersStatus::Continue;
@@ -149,7 +150,7 @@ FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_st
     return FilterDataStatus::Continue;
   }
 
-  ENVOY_LOG(info, "[Appnet Filter] encodeData end_of_stream={}", end_of_stream);
+  ENVOY_LOG(info, "[Appnet Filter] encodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
   this->response_buffer_ = &data;
 
   // std::vector<uint8_t> data_bytes(data.length());
