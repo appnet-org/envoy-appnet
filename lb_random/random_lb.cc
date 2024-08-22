@@ -31,12 +31,12 @@ HostConstSharedPtr MyRandomLoadBalancer::peekOrChoose(LoadBalancerContext* conte
   }
 
   // make sure header exists
-  if (header->get(Http::LowerCaseString("appnet_route_to")).empty()) {
+  if (header->get(Http::LowerCaseString("dst")).empty()) {
     ENVOY_LOG(info, "header not found");
     return nullptr;
   }
 
-  auto route_to =  header->get(Http::LowerCaseString("appnet_route_to"))[0]->value().getStringView();
+  auto route_to =  header->get(Http::LowerCaseString("dst"))[0]->value().getStringView();
 
   // cast it into index
   int route_to_idx = std::stoi(std::string(route_to));

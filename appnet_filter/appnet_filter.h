@@ -184,7 +184,7 @@ public:
 
   void setRoutingEndpoint(int x) {
     auto map = decoder_callbacks_->requestHeaders();
-    map->addCopy(LowerCaseString("appnet_route_to"), x);
+    map->addCopy(LowerCaseString("dst"), x);
   }
 
 private:
