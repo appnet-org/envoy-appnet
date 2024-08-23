@@ -12,6 +12,7 @@
 #include "source/common/http/message_impl.h" 
 
 #include <coroutine>
+#include <string_view>
 
 namespace Envoy {
 namespace Http {
@@ -184,7 +185,14 @@ public:
 
   void setRoutingEndpoint(int x) {
     auto map = decoder_callbacks_->requestHeaders();
-    map->addCopy(LowerCaseString("dst"), x);
+
+    if (map->get(LowerCaseString("dst")).empty()) {
+      map->addCopy(LowerCaseString("dst"), x);
+    } else {
+      auto x_str = std::to_string(x);
+      std::string_view x_str_view = x_str;
+      map->setCopy(LowerCaseString("dst"), x_str_view);
+    }
   }
 
 private:
@@ -200,7 +208,7 @@ private:
 
   std::optional<AppnetCoroutine> appnet_coroutine_;
   ResponseMessagePtr external_response_;
-  std::optional<Awaiter*> webdis_awaiter_;
+  std::optional<Awaiter*> http_awaiter_;
 
   std::mutex mutex_; // for onSuccess and decode/encode synchronization
 
@@ -212,6 +220,7 @@ private:
   AppnetCoroutine startRequestAppnet();
   AppnetCoroutine startResponseAppnet();
   bool sendWebdisRequest(const std::string path, Callbacks& callback);
+  bool sendHttpRequest(const std::string cluster_name, const std::string path, Callbacks &callback);
 };
 
 class EmptyCallback : public Http::AsyncClient::Callbacks {

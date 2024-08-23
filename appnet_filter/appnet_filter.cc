@@ -103,7 +103,8 @@ AppnetFilter::~AppnetFilter() {
 void AppnetFilter::onDestroy() {}
 
 FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool) {
-  ENVOY_LOG(warn, "[Appnet Filter] decodeHeaders {}, this={}", headers, static_cast<void*>(this));
+  std::cerr << "decodeHeaders" << std::endl;
+  ENVOY_LOG(warn, "[Appnet Filter] decodeHeaders headers={}, this={}", headers, static_cast<void*>(this));
   this->request_headers_ = &headers;
   return FilterHeadersStatus::StopIteration;
 }
@@ -136,8 +137,8 @@ void AppnetFilter::setEncoderFilterCallbacks(StreamEncoderFilterCallbacks& callb
 }
 
 FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool) {
-  ENVOY_LOG(warn, "[Appnet Filter] encodeHeaders {}, this={}, req_appnet_blocked_={}",
-    headers, static_cast<void*>(this), this->req_appnet_blocked_); // req_appnet_blocked_ should always be false here.
+  ENVOY_LOG(warn, "[Appnet Filter] encodeHeaders this={}, headers={}",
+    headers, static_cast<void*>(this), headers); 
   this->response_headers_ = &headers;
   if (headers.get(LowerCaseString("appnet-local-reply")).empty() == false) {
     ENVOY_LOG(warn, "[Appnet Filter] encodeHeaders skip local reply");
@@ -180,9 +181,9 @@ void AppnetFilter::onSuccess(const Http::AsyncClient::Request&,
   this->external_response_ = std::move(message);
   assert(message.get() == nullptr);
   ENVOY_LOG(warn, "[Appnet Filter] ExternalResponseCallback onSuccess (second step)");
-  assert(this->webdis_awaiter_.has_value());
+  assert(this->http_awaiter_.has_value());
   this->in_decoding_or_encoding_ = false;
-  this->webdis_awaiter_.value()->i_am_ready();
+  this->http_awaiter_.value()->i_am_ready();
   ENVOY_LOG(warn, "[Appnet Filter] ExternalResponseCallback onSuccess (3rd step)");
 }
 
@@ -198,9 +199,14 @@ void AppnetFilter::onBeforeFinalizeUpstreamSpan(Tracing::Span&,
 }
 
 bool AppnetFilter::sendWebdisRequest(const std::string path, Callbacks &callback) {
-  auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster("webdis_cluster");
+  return this->sendHttpRequest("webdis_cluster", path, callback);
+}
+
+
+bool AppnetFilter::sendHttpRequest(const std::string cluster_name, const std::string path, Callbacks &callback) {
+  auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster(cluster_name);
   if (!cluster) {
-    ENVOY_LOG(warn, "webdis_cluster not found");
+    ENVOY_LOG(warn, "cluster {} not found", cluster_name);
     assert(0);
     return false;
   }
@@ -208,7 +214,7 @@ bool AppnetFilter::sendWebdisRequest(const std::string path, Callbacks &callback
 
   request->headers().setMethod(Http::Headers::get().MethodValues.Get);
   request->headers().setHost("localhost:7379");
-  ENVOY_LOG(warn, "[AppNet Filter] webdis requesting path={}", path);
+  ENVOY_LOG(warn, "[AppNet Filter] requesting path={}", path);
   request->headers().setPath(path);
   auto options = Http::AsyncClient::RequestOptions()
            .setTimeout(std::chrono::milliseconds(1000))
@@ -216,6 +222,7 @@ bool AppnetFilter::sendWebdisRequest(const std::string path, Callbacks &callback
   cluster->httpAsyncClient().send(std::move(request), callback, options);
   return true;
 }
+
 
 AppnetCoroutine AppnetFilter::startRequestAppnet() {
   this->setRoutingEndpoint(0);
