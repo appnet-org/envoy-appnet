@@ -88,7 +88,7 @@ AppnetFilterConfig::AppnetFilterConfig(
 AppnetFilter::AppnetFilter(AppnetFilterConfigSharedPtr config)
   : config_(config), empty_callback_(new EmptyCallback{}) {
 
-  std::lock_guard<std::mutex> guard(global_state_lock);
+  std::unique_lock<std::mutex> guard(global_state_lock);
   if (!init) {
     init = true;
 
