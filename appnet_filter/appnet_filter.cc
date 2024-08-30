@@ -225,9 +225,8 @@ bool AppnetFilter::sendHttpRequest(const std::string cluster_name, const std::st
 
 
 AppnetCoroutine AppnetFilter::startRequestAppnet() {
-  this->setRoutingEndpoint(0);
-
   // !APPNET_REQUEST
+  
   co_return;
 }
 
