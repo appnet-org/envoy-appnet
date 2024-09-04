@@ -24,20 +24,20 @@ struct AppnetCoroutine {
     std::coroutine_handle<promise_type> *to_be_resumed_;
 
     AppnetCoroutine get_return_object() {
-      std::cerr << "get_return_object " << this << std::endl;
+      // std::cerr << "get_return_object " << this << std::endl;
       return AppnetCoroutine(std::coroutine_handle<promise_type>::from_promise(*this));
     }
     void unhandled_exception() noexcept {
-      std::cerr << "unhandled exception" << std::endl;
+      // std::cerr << "unhandled exception" << std::endl;
       std::terminate();
     }
     void return_void() noexcept { }
     std::suspend_always initial_suspend() noexcept { 
-      std::cerr << "initial_suspend " << this << std::endl;
+      // std::cerr << "initial_suspend " << this << std::endl;
       return {};
     }
     std::suspend_always final_suspend() noexcept {
-      std::cerr << "final_suspend " << this << std::endl;
+      // std::cerr << "final_suspend " << this << std::endl;
       return {};
     }
   };
@@ -47,24 +47,24 @@ struct AppnetCoroutine {
 
   explicit AppnetCoroutine(std::coroutine_handle<promise_type> handle)
       : handle_(handle) {
-    std::cerr << "create app coroutine. this=" << this << std::endl;
+    // std::cerr << "create app coroutine. this=" << this << std::endl;
   }
 
   AppnetCoroutine(const AppnetCoroutine& rhs) = delete;
 
   AppnetCoroutine(AppnetCoroutine&& rhs) {
-    std::cerr << "move ctor from " << &rhs << " to " << this << std::endl;
+    // std::cerr << "move ctor from " << &rhs << " to " << this << std::endl;
     handle_ = rhs.handle_;
     rhs.handle_.reset();
   }
 
   ~AppnetCoroutine() {
     if (handle_.has_value()) {
-      std::cerr << "destroy " << this << std::endl;
+      // std::cerr << "destroy " << this << std::endl;
       assert(handle_.value().done());
       handle_.value().destroy();
     } else {
-      std::cerr << "destroy " << this << " (no handle)" << std::endl;
+      // std::cerr << "destroy " << this << " (no handle)" << std::endl;
     }
   }
 };
@@ -76,14 +76,14 @@ struct Awaiter {
   std::optional<std::coroutine_handle<AppnetCoroutine::promise_type>> to_be_resumed_;
   
   bool await_ready() noexcept { 
-    std::cerr << "await_ready " << this << std::endl;
+    // std::cerr << "await_ready " << this << std::endl;
     std::lock_guard<std::mutex> lock(mutex_);
 
     return ready_;
   }
 
   bool await_suspend(std::coroutine_handle<AppnetCoroutine::promise_type> caller_handler) noexcept {
-    std::cerr << "await_suspend " << this << std::endl;
+    // std::cerr << "await_suspend " << this << std::endl;
 
     // Determine whether the webdis response arrived. 
     // If yes, just return false to continue the appnet coroutine.
@@ -101,21 +101,21 @@ struct Awaiter {
   // the co_await statement uses this method to get the return value after 
   // the coroutine of this co_await is resumed.
   void await_resume() const noexcept {
-    std::cerr << "await_resume " << this << std::endl;
+    // std::cerr << "await_resume " << this << std::endl;
   }
 
   // This function is called when the webdis response arrives. 
   // i.e. Filter::onSuccess()
   void i_am_ready() {
     std::lock_guard<std::mutex> lock(mutex_);
-    std::cerr << "i_am_ready " << this << std::endl;
+    // std::cerr << "i_am_ready " << this << std::endl;
     if (to_be_resumed_.has_value()) {
       // the caller is waiting for the response
-      std::cerr << "resume the caller" << std::endl;
+      // std::cerr << "resume the caller" << std::endl;
       to_be_resumed_.value().resume();
     } else {
       // the caller has not asked for the response yet.
-      std::cerr << "no caller to resume" << std::endl;
+      // std::cerr << "no caller to resume" << std::endl;
       ready_ = true;
     }
   }
