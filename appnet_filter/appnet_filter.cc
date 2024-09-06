@@ -103,18 +103,31 @@ AppnetFilter::~AppnetFilter() {
 void AppnetFilter::onDestroy() {}
 
 FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool) {
-  // std::cerr << "decodeHeaders" << std::endl;
-  ENVOY_LOG(warn, "[Native] Executing in decodeHeaders");
-  ENVOY_LOG(info, "[Appnet Filter] decodeHeaders headers={}, this={}", headers, static_cast<void*>(this));
+  ENVOY_LOG(warn, "[Native] Executing in decodeHeaders this={}", static_cast<void*>(this));
+  ENVOY_LOG(warn, "[Appnet Filter] decodeHeaders headers={}, this={}", headers, static_cast<void*>(this));
   this->request_headers_ = &headers;
+  // if have no "appnet-rpc-id", just continue
+  if (headers.get(LowerCaseString("appnet-rpc-id")).empty()) {
+    ENVOY_LOG(info, "[Appnet Filter] decodeHeaders skip irrelevant request");
+    return FilterHeadersStatus::Continue;
+  }
   return FilterHeadersStatus::StopIteration;
 }
 
 FilterDataStatus AppnetFilter::decodeData(Buffer::Instance &data, bool end_of_stream) {
-  if (!end_of_stream) 
-    return FilterDataStatus::Continue;
+  ENVOY_LOG(warn, "[Native] Executing in decodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
 
-  ENVOY_LOG(warn, "[Native] Executing in decodeData");
+  // if have no "appnet-rpc-id", just continue
+  if (request_headers_ == nullptr || this->request_headers_->get(LowerCaseString("appnet-rpc-id")).empty()) {
+    ENVOY_LOG(info, "[Appnet Filter] decodeData skip irrelevant request");
+    return FilterDataStatus::Continue;
+  }
+  
+  if (!end_of_stream) {
+    ENVOY_LOG(info, "[Appnet Filter] decodeData not end of stream, skip");
+    return FilterDataStatus::Continue;
+  }
+
   ENVOY_LOG(info, "[Appnet Filter] decodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
   this->request_buffer_ = &data;
   this->appnet_coroutine_.emplace(this->startRequestAppnet());
@@ -143,9 +156,15 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
   ENVOY_LOG(info, "[Appnet Filter] encodeHeaders this={}, headers={}",
     headers, static_cast<void*>(this), headers); 
   this->response_headers_ = &headers;
-  if (headers.get(LowerCaseString("grpc-status")).empty() == false) {
-    ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip local reply");
-    // We don't process the response if the request is blocked.
+  if (headers.get(LowerCaseString("grpc-status")).empty()) {
+    ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip irrelevant response");
+    // Skip some strange response
+    return FilterHeadersStatus::Continue;
+  }
+  const Envoy::Http::HeaderEntry *grpc_status = headers.get(LowerCaseString("grpc-status"))[0];
+  if (grpc_status->value().getStringView() != "0") {
+    // TODO: This causes a chain bug. See https://github.com/appnet-org/compiler/issues/37
+    ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip error response");
     return FilterHeadersStatus::Continue;
   }
   return FilterHeadersStatus::StopIteration;
@@ -153,17 +172,28 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
 
 FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_stream) {
   ENVOY_LOG(warn, "[Native] Executing in encodeData");
-  if (this->req_appnet_blocked_) {
-    // We don't process the response if the request is blocked.
+
+  if (this->response_headers_ == nullptr ||  this->response_headers_->get(LowerCaseString("grpc-status")).empty()) {
+    ENVOY_LOG(info, "[Appnet Filter] encodeData skip irrelevant response");
+    // Skip some strange response
     return FilterDataStatus::Continue;
   }
 
+  const Envoy::Http::HeaderEntry *grpc_status = this->response_headers_->get(LowerCaseString("grpc-status"))[0];
+  if (grpc_status->value().getStringView() != "0") {
+    // TODO: This causes a chain bug. See https://github.com/appnet-org/compiler/issues/37
+    ENVOY_LOG(info, "[Appnet Filter] encodeData skip error response");
+    return FilterDataStatus::Continue;
+  }
+
+  // Yongtong: I beleive this can be removed, but just leave it here as comment for now.
+  // if (this->req_appnet_blocked_) {
+  //   // We don't process the response if the request is blocked.
+  //   return FilterDataStatus::Continue;
+  // }
+
   ENVOY_LOG(info, "[Appnet Filter] encodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
   this->response_buffer_ = &data;
-
-  // std::vector<uint8_t> data_bytes(data.length());
-  // data.copyOut(0, data.length(), data_bytes.data());
-  // this->response_msg_ = ::appnetsamplefilter::Msg::ParseFromString(data_bytes.data() + 5, data_bytes.size() - 5);
 
   this->appnet_coroutine_.emplace(this->startResponseAppnet());
   this->in_decoding_or_encoding_ = true;
