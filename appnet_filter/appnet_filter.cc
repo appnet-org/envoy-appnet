@@ -1,7 +1,5 @@
 #include <netinet/in.h>
 #include <string>
-#include <random>
-#include <chrono>
 #include <mutex>
 #include <algorithm>
 
@@ -9,19 +7,21 @@
 #include "appnet_filter/echo.pb.h"
 
 #include "envoy/server/filter_config.h"
-#include "google/protobuf/extension_set.h"
 #include "source/common/http/utility.h"
 #include "source/common/http/message_impl.h" 
 #include "envoy/upstream/resource_manager.h"
-#include "thirdparty/json.hpp"
 
+// Don't remove those headers. They are used in the generated code.
+#include "thirdparty/json.hpp"
+#include "google/protobuf/extension_set.h"
+#include <random>
+#include <chrono>
 
 namespace Envoy {
 namespace Http {
 
 namespace AppNetSampleFilter {
   
-#include "thirdparty/base64.h"
 
 template<typename A, typename B>
 auto my_min(A a, B b) {
@@ -103,10 +103,11 @@ AppnetFilter::~AppnetFilter() {
 void AppnetFilter::onDestroy() {}
 
 FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool) {
-  ENVOY_LOG(warn, "[Native] Executing in decodeHeaders this={}", static_cast<void*>(this));
-  ENVOY_LOG(warn, "[Appnet Filter] decodeHeaders headers={}, this={}", headers, static_cast<void*>(this));
+  ENVOY_LOG(warn, "[Native] Executing in decodeHeaders this={}, headers={}", static_cast<void*>(this), headers);
   this->request_headers_ = &headers;
-  // if have no "appnet-rpc-id", just continue
+
+  // If have no "appnet-rpc-id", just continue
+  // We do this to skip TLS handshake stuff which only occurs in ambient waypoints.
   if (headers.get(LowerCaseString("appnet-rpc-id")).empty()) {
     ENVOY_LOG(info, "[Appnet Filter] decodeHeaders skip irrelevant request");
     return FilterHeadersStatus::Continue;
@@ -117,7 +118,9 @@ FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool
 FilterDataStatus AppnetFilter::decodeData(Buffer::Instance &data, bool end_of_stream) {
   ENVOY_LOG(warn, "[Native] Executing in decodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
 
-  // if have no "appnet-rpc-id", just continue
+  // If no "appnet-rpc-id", it means this is not a appnet rpc. 
+  // We do this to skip TLS handshake stuff which only occurs in ambient waypoints.
+  // Yongtong: sometimes request_headers_ is nullptr, I don't know why. Just skip it.
   if (request_headers_ == nullptr || this->request_headers_->get(LowerCaseString("appnet-rpc-id")).empty()) {
     ENVOY_LOG(info, "[Appnet Filter] decodeData skip irrelevant request");
     return FilterDataStatus::Continue;
@@ -152,45 +155,49 @@ void AppnetFilter::setEncoderFilterCallbacks(StreamEncoderFilterCallbacks& callb
 }
 
 FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool) {
-  ENVOY_LOG(warn, "[Native] Executing in encodeHeaders");
-  ENVOY_LOG(info, "[Appnet Filter] encodeHeaders this={}, headers={}",
-    headers, static_cast<void*>(this), headers); 
+  ENVOY_LOG(warn, "[Native] Executing in encodeHeaders this={}, headers={}", static_cast<void*>(this), headers);
   this->response_headers_ = &headers;
+
+  // Server response and element error response both have "grpc-status" header.
+  // We do this to filter out irrelevant response such as TLS handshake stuff.
   if (headers.get(LowerCaseString("grpc-status")).empty()) {
     ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip irrelevant response");
-    // Skip some strange response
     return FilterHeadersStatus::Continue;
   }
+
+  // We cannot stop a header-only response.
+  // For now, only error message is header-only, so we use this to detect it.
   const Envoy::Http::HeaderEntry *grpc_status = headers.get(LowerCaseString("grpc-status"))[0];
   if (grpc_status->value().getStringView() != "0") {
-    // TODO: This causes a chain bug. See https://github.com/appnet-org/compiler/issues/37
+    // TODO: This still causes a chain bug that the expected response handling is not triggered.
+    // See https://github.com/appnet-org/compiler/issues/37
     ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip error response");
     return FilterHeadersStatus::Continue;
   }
+
   return FilterHeadersStatus::StopIteration;
 }
 
 FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_stream) {
   ENVOY_LOG(warn, "[Native] Executing in encodeData");
 
+  // Server response and element error response both have "grpc-status" header.
+  // We do this to filter out irrelevant response such as TLS handshake stuff.
+  // Yongtong: sometimes response_headers_ is nullptr, I don't know why. Just skip it.
   if (this->response_headers_ == nullptr ||  this->response_headers_->get(LowerCaseString("grpc-status")).empty()) {
     ENVOY_LOG(info, "[Appnet Filter] encodeData skip irrelevant response");
-    // Skip some strange response
     return FilterDataStatus::Continue;
   }
 
+  // We cannot stop a header-only response.
+  // For now, only error message is header-only, so we use this to detect it.
   const Envoy::Http::HeaderEntry *grpc_status = this->response_headers_->get(LowerCaseString("grpc-status"))[0];
   if (grpc_status->value().getStringView() != "0") {
-    // TODO: This causes a chain bug. See https://github.com/appnet-org/compiler/issues/37
+    // TODO: This still causes a chain bug that the expected response handling is not triggered.
+    // See https://github.com/appnet-org/compiler/issues/37
     ENVOY_LOG(info, "[Appnet Filter] encodeData skip error response");
     return FilterDataStatus::Continue;
   }
-
-  // Yongtong: I beleive this can be removed, but just leave it here as comment for now.
-  // if (this->req_appnet_blocked_) {
-  //   // We don't process the response if the request is blocked.
-  //   return FilterDataStatus::Continue;
-  // }
 
   ENVOY_LOG(info, "[Appnet Filter] encodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
   this->response_buffer_ = &data;
@@ -208,7 +215,7 @@ FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_st
   }
 }
 
-// For now, it's dedicated to the webdis response.
+// Callback of async http response handling
 void AppnetFilter::onSuccess(const Http::AsyncClient::Request&,
                  Http::ResponseMessagePtr&& message) {
   ENVOY_LOG(info, "[Appnet Filter] ExternalResponseCallback onSuccess");
@@ -235,7 +242,6 @@ void AppnetFilter::onBeforeFinalizeUpstreamSpan(Tracing::Span&,
 bool AppnetFilter::sendWebdisRequest(const std::string path, Callbacks &callback) {
   return this->sendHttpRequest("webdis_cluster", path, callback);
 }
-
 
 bool AppnetFilter::sendHttpRequest(const std::string cluster_name, const std::string path, Callbacks &callback) {
   auto cluster = this->config_->ctx_.serverFactoryContext().clusterManager().getThreadLocalCluster(cluster_name);

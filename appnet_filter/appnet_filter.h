@@ -85,7 +85,7 @@ struct Awaiter {
   bool await_suspend(std::coroutine_handle<AppnetCoroutine::promise_type> caller_handler) noexcept {
     // std::cerr << "await_suspend " << this << std::endl;
 
-    // Determine whether the webdis response arrived. 
+    // Determine whether the async control flow arrives.
     // If yes, just return false to continue the appnet coroutine.
     // If no, save the caller_handler to be resumed later.
 
