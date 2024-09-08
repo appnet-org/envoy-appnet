@@ -12,6 +12,7 @@
 #include "envoy/upstream/resource_manager.h"
 
 // Don't remove those headers. They are used in the generated code.
+#include "thirdparty/base64.h"
 #include "thirdparty/json.hpp"
 #include "google/protobuf/extension_set.h"
 #include <random>
