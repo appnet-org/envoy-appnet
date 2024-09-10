@@ -15,12 +15,11 @@ namespace AppNetSampleFilter {
 
 using namespace Envoy::Http::AppNetSampleFilter;
 
-class AppnetFilterConfigFactory : public NamedHttpFilterConfigFactory {
+class AppnetFilterConfigFactory : public NamedHttpFilterConfigFactory, Logger::Loggable<Logger::Id::filter> {
 public:
   absl::StatusOr<Http::FilterFactoryCb> createFilterFactoryFromProto(const Protobuf::Message& proto_config,
                                                      const std::string&,
                                                      FactoryContext& context) override {
-
     return createFilter(Envoy::MessageUtil::downcastAndValidate<const ::appnetsamplefilter::FilterConfig&>(
                             proto_config, context.messageValidationVisitor()),
                         context);
@@ -40,6 +39,8 @@ private:
     AppnetFilterConfigSharedPtr config =
         std::make_shared<AppnetFilterConfig>(
             AppnetFilterConfig(proto_config, factory_ctx));
+
+    ENVOY_LOG(warn, "AppNetSampleFilter: create filter factory");
 
     // We leak it intentionally.
     auto _ = new AppNetWeakSyncTimer(
