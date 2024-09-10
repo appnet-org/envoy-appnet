@@ -104,7 +104,7 @@ AppnetFilter::~AppnetFilter() {
 void AppnetFilter::onDestroy() {}
 
 FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool) {
-  ENVOY_LOG(warn, "[Native] Executing in decodeHeaders this={}, headers={}", static_cast<void*>(this), headers);
+  ENVOY_LOG(info, "[Native] Executing in decodeHeaders this={}, headers={}", static_cast<void*>(this), headers);
   this->request_headers_ = &headers;
 
   // If have no "appnet-rpc-id", just continue
@@ -117,7 +117,7 @@ FilterHeadersStatus AppnetFilter::decodeHeaders(RequestHeaderMap & headers, bool
 }
 
 FilterDataStatus AppnetFilter::decodeData(Buffer::Instance &data, bool end_of_stream) {
-  ENVOY_LOG(warn, "[Native] Executing in decodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
+  ENVOY_LOG(info, "[Native] Executing in decodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
 
   // If no "appnet-rpc-id", it means this is not a appnet rpc. 
   // We do this to skip TLS handshake stuff which only occurs in ambient waypoints.
@@ -156,7 +156,7 @@ void AppnetFilter::setEncoderFilterCallbacks(StreamEncoderFilterCallbacks& callb
 }
 
 FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool) {
-  ENVOY_LOG(warn, "[Native] Executing in encodeHeaders this={}, headers={}", static_cast<void*>(this), headers);
+  ENVOY_LOG(info, "[Native] Executing in encodeHeaders this={}, headers={}", static_cast<void*>(this), headers);
   this->response_headers_ = &headers;
 
   // Server response and element error response both have "grpc-status" header.
@@ -180,7 +180,7 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
 }
 
 FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_stream) {
-  ENVOY_LOG(warn, "[Native] Executing in encodeData");
+  ENVOY_LOG(info, "[Native] Executing in encodeData");
 
   // Server response and element error response both have "grpc-status" header.
   // We do this to filter out irrelevant response such as TLS handshake stuff.
