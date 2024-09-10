@@ -40,7 +40,7 @@ private:
         std::make_shared<AppnetFilterConfig>(
             AppnetFilterConfig(proto_config, factory_ctx));
 
-    ENVOY_LOG(warn, "AppNetSampleFilter: create filter factory");
+    ENVOY_LOG(warn, "AppNetSampleFilter initializing");
 
     // We leak it intentionally.
     auto _ = new AppNetWeakSyncTimer(
