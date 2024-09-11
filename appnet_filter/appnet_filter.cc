@@ -161,19 +161,22 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
 
   // Server response and element error response both have "grpc-status" header.
   // We do this to filter out irrelevant response such as TLS handshake stuff.
-  if (headers.get(LowerCaseString("grpc-status")).empty()) {
+  if (headers.get(LowerCaseString("grpc-status")).empty() && headers.get(LowerCaseString("appnet-rpc-id")).empty()) {
     ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip irrelevant response");
     return FilterHeadersStatus::Continue;
   }
 
   // We cannot stop a header-only response.
   // For now, only error message is header-only, so we use this to detect it.
-  const Envoy::Http::HeaderEntry *grpc_status = headers.get(LowerCaseString("grpc-status"))[0];
-  if (grpc_status->value().getStringView() != "0") {
-    // TODO: This still causes a chain bug that the expected response handling is not triggered.
-    // See https://github.com/appnet-org/compiler/issues/37
-    ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip error response");
-    return FilterHeadersStatus::Continue;
+  if (!headers.get(LowerCaseString("grpc-status")).empty())
+  {
+    const Envoy::Http::HeaderEntry *grpc_status = headers.get(LowerCaseString("grpc-status"))[0];
+    if (grpc_status->value().getStringView() != "0") {
+      // TODO: This still causes a chain bug that the expected response handling is not triggered.
+      // See https://github.com/appnet-org/compiler/issues/37
+      ENVOY_LOG(info, "[Appnet Filter] encodeHeaders skip error response");
+      return FilterHeadersStatus::Continue;
+    }
   }
 
   return FilterHeadersStatus::StopIteration;
@@ -181,23 +184,26 @@ FilterHeadersStatus AppnetFilter::encodeHeaders(ResponseHeaderMap& headers, bool
 
 FilterDataStatus AppnetFilter::encodeData(Buffer::Instance &data, bool end_of_stream) {
   ENVOY_LOG(info, "[Native] Executing in encodeData");
-
   // Server response and element error response both have "grpc-status" header.
   // We do this to filter out irrelevant response such as TLS handshake stuff.
   // Yongtong: sometimes response_headers_ is nullptr, I don't know why. Just skip it.
-  if (this->response_headers_ == nullptr ||  this->response_headers_->get(LowerCaseString("grpc-status")).empty()) {
+  if (this->response_headers_ == nullptr || 
+    (this->response_headers_->get(LowerCaseString("grpc-status")).empty() && this->response_headers_->get(LowerCaseString("appnet-rpc-id")).empty())
+  ) {
     ENVOY_LOG(info, "[Appnet Filter] encodeData skip irrelevant response");
     return FilterDataStatus::Continue;
   }
 
   // We cannot stop a header-only response.
   // For now, only error message is header-only, so we use this to detect it.
-  const Envoy::Http::HeaderEntry *grpc_status = this->response_headers_->get(LowerCaseString("grpc-status"))[0];
-  if (grpc_status->value().getStringView() != "0") {
-    // TODO: This still causes a chain bug that the expected response handling is not triggered.
-    // See https://github.com/appnet-org/compiler/issues/37
-    ENVOY_LOG(info, "[Appnet Filter] encodeData skip error response");
-    return FilterDataStatus::Continue;
+  if (!this->response_headers_->get(LowerCaseString("grpc-status")).empty()) {
+    const Envoy::Http::HeaderEntry *grpc_status = this->response_headers_->get(LowerCaseString("grpc-status"))[0];
+    if (grpc_status->value().getStringView() != "0") {
+      // TODO: This still causes a chain bug that the expected response handling is not triggered.
+      // See https://github.com/appnet-org/compiler/issues/37
+      ENVOY_LOG(info, "[Appnet Filter] encodeData skip error response");
+      return FilterDataStatus::Continue;
+    }
   }
 
   ENVOY_LOG(info, "[Appnet Filter] encodeData this={}, end_of_stream={}", static_cast<void*>(this), end_of_stream);
